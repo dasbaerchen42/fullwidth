@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>半形→全形標點轉換器</title>
+
+  <style>
+    /* =========================
+       Theme (Japanese minimal)
+       ========================= */
+    :root{
+      --bg: #fff8dc;           /* light:淡黃 */
+      --panel: rgba(255,255,255,.55);
+      --panel-border: rgba(40,40,40,.10);
+      --text: #2b2b2b;         /* 深灰字 */
+      --muted: rgba(43,43,43,.70);
+      --accent: #ffd24d;       /* 黃色按鈕/重點 */
+      --accent-text: #1f1f1f;
+      --shadow: 0 10px 30px rgba(0,0,0,.08);
+      --glass: rgba(255,255,255,.45);
+      --glass-border: rgba(255,255,255,.60);
+      --radius: 18px;
+      --radius-btn: 14px;
+      --gap: 12px;
+    }
+
+    /* Dark theme variables */
+    [data-theme="dark"]{
+      --bg: #1f1f22;           /* 深灰介面 */
+      --panel: rgba(255,255,255,.08);
+      --panel-border: rgba(255,255,255,.12);
+      --text: rgba(255,255,255,.86);
+      --muted: rgba(255,255,255,.65);
+      --accent: #ffd24d;       /* 黃色按鈕 */
+      --accent-text: #1a1a1a;
+      --shadow: 0 16px 40px rgba(0,0,0,.35);
+      --glass: rgba(255,255,255,.10);
+      --glass-border: rgba(255,255,255,.14);
+    }
+
+    /* Base layout */
+    body{
+      margin: 0;
+      font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background .2s ease, color .2s ease;
+      letter-spacing: .35px; /* 日系：字距 */
+    }
+
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 14px;
+    }
+
+    header{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    h1{
+      font-size: 18px;
+      margin: 6px 0 4px;
+      letter-spacing: .6px;
+    }
+    .sub{
+      font-size: 12.5px;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.55;
+      letter-spacing: .45px;
+    }
+
+    .panel{
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .topbar{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap: 10px;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .btns{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px;
+    }
+
+    button{
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-btn);
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: .45px;
+      background: linear-gradient(180deg, var(--glass), rgba(255,255,255,.10));
+      color: var(--text);
+      box-shadow: 0 6px 16px rgba(0,0,0,.10);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: transform .05s ease, filter .15s ease, background .15s ease;
+    }
+    button:active{ transform: translateY(1px); }
+
+    button.primary{
+      background: linear-gradient(180deg, rgba(255,210,77,.95), rgba(255,210,77,.75));
+      border-color: rgba(255,210,77,.9);
+      color: var(--accent-text);
+    }
+    button.secondary{
+      opacity: .95;
+    }
+
+    /* 清空按鈕更淺 */
+    button.warn{
+      background: linear-gradient(180deg, rgba(255,140,140,.45), rgba(255,140,140,.30));
+      border-color: rgba(255,140,140,.40);
+      color: #1b1b1b;
+    }
+
+    .row{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px 16px; /* 日系：間距 */
+      align-items:center;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.8;
+      letter-spacing: .4px;
+    }
+    .row label{ user-select:none; }
+    input[type="checkbox"]{ transform: translateY(1px); }
+
+    .toast{
+      margin-top: 8px;
+      min-height: 18px;
+      font-size: 13px;
+      color: rgba(10,122,47,.95);
+      letter-spacing: .35px;
+    }
+    [data-theme="dark"] .toast{ color: rgba(140,255,180,.92); }
+
+    /* Textareas */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: var(--gap);
+      margin-top: 12px;
+    }
+    @media (min-width: 900px){
+      .grid{ grid-template-columns: 1fr 1fr; }
+    }
+
+    .count{
+      font-size: 12px;
+      color: var(--muted);
+      margin: 6px 2px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      letter-spacing: .45px;
+    }
+
+    .meta{
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    textarea{
+      width: 100%;
+      min-height: 38vh;
+      resize: vertical;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,.70);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.75;
+      letter-spacing: .35px;
+      outline: none;
+      box-shadow: 0 8px 20px rgba(0,0,0,.06);
+    }
+    [data-theme="dark"] textarea{
+      background: rgba(255,255,255,.06);
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+    textarea:focus{
+      border-color: rgba(255,210,77,.85);
+      box-shadow: 0 0 0 3px rgba(255,210,77,.22), var(--shadow);
+    }
+
+    @media (max-width: 420px){
+      button{ padding: 10px 12px; }
+      textarea{ min-height: 32vh; }
+    }
+
+    .rightTools{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .pill{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,.35);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: .4px;
+    }
+    [data-theme="dark"] .pill{
+      background: rgba(255,255,255,.06);
+    }
+
+    .select{
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+      padding: 6px 8px;
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+      outline:none;
+      letter-spacing: .35px;
+    }
+
+    code.kbd{
+      padding: 1px 6px;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,.35);
+      color: var(--text);
+      font-size: 12px;
+    }
+    [data-theme="dark"] code.kbd{ background: rgba(255,255,255,.08); }
+
+    /* 分組：第一列/第二列 */
+    .optionBlock{
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--panel-border);
+    }
+    .optionTitle{
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: .45px;
+      margin: 0 0 6px 2px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>半形 → 全形標點轉換器</h1>
+        <p class="sub">
+          可跳過非中文段落｜自行勾選要替換的文字｜可反覆修改
+        </p>
+      </div>
+
+      <div class="rightTools">
+        <div class="pill">
+          主題：
+          <select id="themeSelect" class="select" aria-label="theme">
+            <option value="auto">自動</option>
+            <option value="light">淺色</option>
+            <option value="dark">深色</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <div class="panel">
+      <div class="topbar">
+        <div class="btns">
+          <button class="primary" id="btnConvert">依勾選項目轉換</button>
+          <button class="secondary" id="btnCopy">複製輸出</button>
+          <button class="secondary" id="btnOutputToInput">輸出 → 丟回輸入框</button>
+          <button class="warn" id="btnClear">清空</button>
+        </div>
+
+        <div class="pill" title="小技巧">
+          hint：先按轉換，再按 <code class="kbd">輸出 → 丟回輸入框</code> 可做二次調整
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:2px;">
+        <strong style="color:var(--text);">要轉換的標點符號：</strong>
+          <div class="row" style="margin-top:0;">
+          <label><input type="checkbox" id="optColon" checked> 冒號 : → ：（不改時間標記）</label>
+          <label><input type="checkbox" id="optComma" checked> 逗號 , → ，（不改千分位分隔號）</label>
+          <label><input type="checkbox" id="optQuestion" checked> 問號 ? → ？</label>
+          <label><input type="checkbox" id="optExcl" checked> 驚嘆號 ! → ！</label>
+          <label><input type="checkbox" id="optQuotes" checked> 引號 ' " → 「 」 / 『 』</label>
+          <label><input type="checkbox" id="optPeriod" checked> 句號 . → 。</label>
+          <label><input type="checkbox" id="optSemi" checked> 分號 ; → ；</label>
+          <label><input type="checkbox" id="optParen"> 小括號 ( ) → （ ）</label>
+          <label><input type="checkbox" id="optBrace"> 大括號 { } → ｛ ｝</label>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <strong style="color:var(--text);">跳過規則：</strong>
+        <label><input type="checkbox" id="optSkipNonCJK" checked> 自動跳過「非中文為主」的段落</label>
+        <label>門檻：
+          <select id="cjkThreshold" class="select" aria-label="cjk threshold">
+            <option value="0.10">寬鬆（≥10%中文才轉）</option>
+            <option value="0.20" selected>標準（≥20%中文才轉）</option>
+            <option value="0.35">嚴格（≥35%中文才轉）</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row" style="margin-top:6px;">
+        <strong style="color:var(--text);">手動略過段落（備援）：</strong>
+        <span style="color:var(--muted);">
+          用 <code class="kbd">[SKIP]</code> 與 <code class="kbd">[/SKIP]</code> 包起來的內容完全不處理（提示詞、外文對話等適用）。
+        </span>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="count">
+          <span>輸入</span>
+          <span class="meta" id="inputMeta">字數 0｜行數 0</span>
+        </div>
+        <textarea id="input" placeholder="把整篇文字貼在這裡…"></textarea>
+      </div>
+      <div>
+        <div class="count">
+          <span>輸出</span>
+          <span class="meta" id="outputMeta">字數 0｜行數 0</span>
+        </div>
+        <textarea id="output" placeholder="轉換後會出現在這裡…" readonly></textarea>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const toast = (msg) => { $("toast").textContent = msg || ""; if(msg){ setTimeout(()=>toast(""), 1800); } };
+
+    /* =========================
+       Theme: auto/light/dark
+       ========================= */
+    const THEME_KEY = "punct_theme_pref";
+
+    function systemPrefersDark(){
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+
+    function applyTheme(mode){
+      if (mode === "auto"){
+        document.documentElement.dataset.theme = systemPrefersDark() ? "dark" : "light";
+      } else {
+        document.documentElement.dataset.theme = mode;
+      }
+    }
+
+    function initTheme(){
+      const saved = localStorage.getItem(THEME_KEY) || "auto";
+      $("themeSelect").value = saved;
+      applyTheme(saved);
+
+      if (window.matchMedia){
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+          const current = $("themeSelect").value;
+          if (current === "auto") applyTheme("auto");
+        });
+      }
+    }
+
+    $("themeSelect").addEventListener("change", (e)=>{
+      const v = e.target.value;
+      localStorage.setItem(THEME_KEY, v);
+      applyTheme(v);
+    });
+
+    initTheme();
+
+    /* =========================
+       字數/行數統計
+       ========================= */
+    function calcMeta(text){
+      const chars = (text || "").length;
+      const lines = text ? text.split("\n").length : 0;
+      return { chars, lines };
+    }
+
+    function updateMeta(){
+      const inVal = $("input").value;
+      const outVal = $("output").value;
+      const inM = calcMeta(inVal);
+      const outM = calcMeta(outVal);
+      $("inputMeta").textContent = `字數 ${inM.chars}｜行數 ${inM.lines}`;
+      $("outputMeta").textContent = `字數 ${outM.chars}｜行數 ${outM.lines}`;
+    }
+
+    $("input").addEventListener("input", updateMeta);
+
+    /* =========================
+       Protection: URLs
+       ========================= */
+    function protectUrls(text){
+      const urls = [];
+      const tokenPrefix = "__URL_TOKEN__";
+      const urlRegex = /\bhttps?:\/\/[^\s]+/gi;
+
+      const protectedText = text.replace(urlRegex, (m) => {
+        const token = tokenPrefix + urls.length + "__";
+        urls.push(m);
+        return token;
+      });
+
+      return {
+        text: protectedText,
+        restore: (t) => t.replace(new RegExp(tokenPrefix + "(\\d+)__", "g"), (_, i) => urls[Number(i)] ?? _)
+      };
+    }
+
+    /* =========================
+       Manual skip blocks [SKIP]...[/SKIP]
+       ========================= */
+    function protectSkipBlocks(text){
+      const blocks = [];
+      const tokenPrefix = "__SKIP_BLOCK__";
+      const re = /\[SKIP\][\s\S]*?\[\/SKIP\]/g;
+
+      const protectedText = text.replace(re, (m) => {
+        const token = tokenPrefix + blocks.length + "__";
+        const inner = m.replace(/^\[SKIP\]/, "").replace(/\[\/SKIP\]$/, "");
+        blocks.push(inner);
+        return token;
+      });
+
+      return {
+        text: protectedText,
+        restore: (t) => t.replace(new RegExp(tokenPrefix + "(\\d+)__", "g"), (_, i) => blocks[Number(i)] ?? _)
+      };
+    }
+
+    function replaceCharWithGuard(text, fromChar, toChar, shouldSkip){
+      let out = "";
+      for (let i = 0; i < text.length; i++){
+        const ch = text[i];
+        if (ch === fromChar){
+          if (shouldSkip && shouldSkip(text, i)) out += ch;
+          else out += toChar;
+        } else {
+          out += ch;
+        }
+      }
+      return out;
+    }
+
+    function isDigit(ch){ return ch >= "0" && ch <= "9"; }
+
+    function skipColonInNumber(text, idx){
+      return isDigit(text[idx - 1]) && isDigit(text[idx + 1]);
+    }
+
+    function skipCommaInNumber(text, idx){
+      return isDigit(text[idx - 1]) && isDigit(text[idx + 1]);
+    }
+
+    function convertQuotes(text){
+      let dOpen = true; // "
+      let sOpen = true; // '
+      let out = "";
+      for (const ch of text){
+        if (ch === '"'){
+          out += dOpen ? "「" : "」";
+          dOpen = !dOpen;
+        } else if (ch === "'"){
+          out += sOpen ? "『" : "』";
+          sOpen = !sOpen;
+        } else {
+          out += ch;
+        }
+      }
+      return out;
+    }
+
+    function cjkRatioOf(text){
+      const cjk = (text.match(/[\u4E00-\u9FFF\u3400-\u4DBF]/g) || []).length;
+      const letters = (text.match(/[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/g) || []).length;
+      const digits = (text.match(/[0-9]/g) || []).length;
+      const denom = Math.max(1, cjk + letters + digits);
+      return cjk / denom;
+    }
+
+    function convertSegment(seg){
+      let t = seg;
+
+      if ($("optColon").checked){
+        t = replaceCharWithGuard(t, ":", "：", skipColonInNumber);
+      }
+      if ($("optComma").checked){
+        t = replaceCharWithGuard(t, ",", "，", skipCommaInNumber);
+      }
+      if ($("optQuestion").checked){
+        t = t.replaceAll("?", "？");
+      }
+      if ($("optExcl").checked){
+        t = t.replaceAll("!", "！");
+      }
+      if ($("optPeriod").checked){
+        t = t.replaceAll(".", "。");
+      }
+      if ($("optSemi").checked){
+        t = t.replaceAll(";", "；");
+      }
+      if ($("optParen").checked){
+        t = t.replaceAll("(", "（").replaceAll(")", "）");
+      }
+      if ($("optBrace").checked){
+        t = t.replaceAll("{", "｛").replaceAll("}", "｝");
+      }
+
+      if ($("optQuotes").checked){
+        t = convertQuotes(t);
+      }
+      return t;
+    }
+
+    function convertAll(raw){
+      let text = raw ?? "";
+
+      const skipP = protectSkipBlocks(text);
+      text = skipP.text;
+
+      const urlP = protectUrls(text);
+      text = urlP.text;
+
+      const parts = text.split(/(\n\s*\n+)/);
+
+      const doSkipNonCJK = $("optSkipNonCJK").checked;
+      const threshold = parseFloat($("cjkThreshold").value || "0.20");
+
+      for (let i = 0; i < parts.length; i++){
+        const p = parts[i];
+        if (/^\n\s*\n+$/.test(p)) continue;
+
+        if (doSkipNonCJK){
+          const ratio = cjkRatioOf(p);
+          if (ratio < threshold) continue;
+        }
+
+        parts[i] = convertSegment(p);
+      }
+
+      let out = parts.join("");
+      out = urlP.restore(out);
+      out = skipP.restore(out);
+
+      return out;
+    }
+
+    function runConvert(){
+      const input = $("input").value;
+      $("output").value = convertAll(input);
+      updateMeta();
+      toast("完成轉換 ✓");
+    }
+
+    $("btnConvert").addEventListener("click", runConvert);
+
+    $("btnCopy").addEventListener("click", async ()=>{
+      const text = $("output").value;
+      if(!text){ toast("輸出是空的喔"); return; }
+      try{
+        await navigator.clipboard.writeText(text);
+        toast("已複製到剪貼簿 ✓");
+      }catch(e){
+        $("output").focus();
+        $("output").select();
+        document.execCommand("copy");
+        toast("已複製到剪貼簿 ✓");
+      }
+    });
+
+    $("btnOutputToInput").addEventListener("click", ()=>{
+      const out = $("output").value;
+      if(!out){ toast("輸出是空的喔"); return; }
+      $("input").value = out;
+      updateMeta();
+      toast("已丟回輸入框 ✓");
+    });
+
+    $("btnClear").addEventListener("click", ()=>{
+      $("input").value = "";
+      $("output").value = "";
+      updateMeta();
+      toast("已清空");
+    });
+
+    // 初始顯示
+    updateMeta();
+  </script>
+</body>
+</html>
