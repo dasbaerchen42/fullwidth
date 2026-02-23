@@ -7,6 +7,7 @@
   <title>半形→全形標點轉換器</title>
 
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
     /* =========================
        Theme (Japanese minimal)
        ========================= */
@@ -165,7 +166,7 @@
       margin-top: 12px;
     }
     @media (min-width: 900px){
-      .grid{ grid-template-columns: 1fr 1fr; }
+      .grid{ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     }
 
     .count{
@@ -199,6 +200,7 @@
       letter-spacing: .35px;
       outline: none;
       box-shadow: 0 8px 20px rgba(0,0,0,.06);
+      box-sizing: border-box;
     }
     [data-theme="dark"] textarea{
       background: rgba(255,255,255,.06);
@@ -628,4 +630,5 @@
     updateMeta();
   </script>
 </body>
+
 </html>
