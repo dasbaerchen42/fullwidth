@@ -518,72 +518,146 @@
       return cjk / denom;
     }
 
-    function convertSegment(seg){
-      let t = seg;
+    // === NEW: CJK 判斷（含中文常用區段，日文/韓文之後也能擴充）===
+      function isCJKChar(ch){
+      return /[\u4E00-\u9FFF\u3400-\u4DBF]/.test(ch);
+}
 
-      if ($("optColon").checked){
-        t = replaceCharWithGuard(t, ":", "：", skipColonInNumber);
-      }
-      if ($("optComma").checked){
-        t = replaceCharWithGuard(t, ",", "，", skipCommaInNumber);
-      }
-      if ($("optQuestion").checked){
-        t = t.replaceAll("?", "？");
-      }
-      if ($("optExcl").checked){
-        t = t.replaceAll("!", "！");
-      }
-      if ($("optPeriod").checked){
-        t = t.replaceAll(".", "。");
-      }
-      if ($("optSemi").checked){
-        t = t.replaceAll(";", "；");
-      }
-      if ($("optParen").checked){
-        t = t.replaceAll("(", "（").replaceAll(")", "）");
-      }
-      if ($("optBrace").checked){
-        t = t.replaceAll("{", "｛").replaceAll("}", "｝");
-      }
+// 把字串切成「CJK 片段」與「非 CJK 片段」
+      function splitByCJK(text){
+      return (text || "").match(/([\u4E00-\u9FFF\u3400-\u4DBF]+|[^\u4E00-\u9FFF\u3400-\u4DBF]+)/g) || [""];
+}
 
-      if ($("optQuotes").checked){
-        t = convertQuotes(t);
-      }
-      return t;
-    }
+// 這個 index 的字元是否「靠近中文」：左或右一側任一邊緊貼 CJK
+      function nearCJK(text, idx){
+      const left = text[idx - 1] || "";
+      const right = text[idx + 1] || "";
+      return isCJKChar(left) || isCJKChar(right);
+}
 
-    function convertAll(raw){
-      let text = raw ?? "";
-
-      const skipP = protectSkipBlocks(text);
-      text = skipP.text;
-
-      const urlP = protectUrls(text);
-      text = urlP.text;
-
-      const parts = text.split(/(\n\s*\n+)/);
-
-      const doSkipNonCJK = $("optSkipNonCJK").checked;
-      const threshold = parseFloat($("cjkThreshold").value || "0.20");
-
-      for (let i = 0; i < parts.length; i++){
-        const p = parts[i];
-        if (/^\n\s*\n+$/.test(p)) continue;
-
-        if (doSkipNonCJK){
-          const ratio = cjkRatioOf(p);
-          if (ratio < threshold) continue;
+// 只在「靠近中文」的位置，把單一字元替換掉
+      function replaceCharNearCJK(text, fromChar, toChar, shouldSkip){
+        let out = "";
+        for (let i = 0; i < text.length; i++){
+          const ch = text[i];
+          if (ch === fromChar){
+            if (!nearCJK(text, i)) { out += ch; continue; }
+            if (shouldSkip && shouldSkip(text, i)) out += ch;
+            else out += toChar;
+          } else {
+            out += ch;
+          }
         }
-
-        parts[i] = convertSegment(p);
+        return out;
       }
 
-      let out = parts.join("");
-      out = urlP.restore(out);
-      out = skipP.restore(out);
+    function convertSegment(seg){
+  // seg already protected (urls/skip blocks)
+  let t = seg;
 
-      return out;
+  // ✅ 冒號：只在靠近中文才轉，且仍保護 12:15
+  if ($("optColon").checked){
+    t = replaceCharNearCJK(t, ":", "：", skipColonInNumber);
+  }
+
+  // ✅ 逗號：只在靠近中文才轉，且仍保護 3,000
+  if ($("optComma").checked){
+    t = replaceCharNearCJK(t, ",", "，", skipCommaInNumber);
+  }
+
+  if ($("optQuestion").checked){
+    t = replaceCharNearCJK(t, "?", "？");
+  }
+  if ($("optExcl").checked){
+    t = replaceCharNearCJK(t, "!", "！");
+  }
+  if ($("optPeriod").checked){
+    t = replaceCharNearCJK(t, ".", "。");
+  }
+  if ($("optSemi").checked){
+    t = replaceCharNearCJK(t, ";", "；");
+  }
+
+  if ($("optParen").checked){
+    t = replaceCharNearCJK(t, "(", "（");
+    t = replaceCharNearCJK(t, ")", "）");
+  }
+  if ($("optBrace").checked){
+    t = replaceCharNearCJK(t, "{", "｛");
+    t = replaceCharNearCJK(t, "}", "｝");
+  }
+
+  // [] 不轉；- 不轉（你原本的設計）
+
+  // ✅ 引號：只在靠近中文才轉，避免外文整段被換成「」
+  if ($("optQuotes").checked){
+    t = convertQuotesNearCJK(t);
+  }
+
+  return t;
+}
+    // ✅ 只在靠近中文時才把 ' " 轉成「」『』
+function convertQuotesNearCJK(text){
+  let dOpen = true; // "
+  let sOpen = true; // '
+  let out = "";
+
+  for (let i = 0; i < text.length; i++){
+    const ch = text[i];
+
+    if (ch === '"' && nearCJK(text, i)){
+      out += dOpen ? "「" : "」";
+      dOpen = !dOpen;
+    } else if (ch === "'" && nearCJK(text, i)){
+      out += sOpen ? "『" : "』";
+      sOpen = !sOpen;
+    } else {
+      out += ch;
     }
+  }
+  return out;
+}
+    function convertAll(raw){
+  let text = raw ?? "";
+
+  // protect [SKIP] blocks first
+  const skipP = protectSkipBlocks(text);
+  text = skipP.text;
+
+  // protect urls
+  const urlP = protectUrls(text);
+  text = urlP.text;
+
+  // paragraph segmentation by blank lines; preserve delimiters
+  const parts = text.split(/(\n\s*\n+)/);
+
+  // 你要「強制跳過非中文段落」的效果，這版改成：
+  // ✅ 不再看比例，不再整段跳過
+  // ✅ 改成：只要靠近中文才轉標點 → 外文段落自然不會被動到
+
+  for (let i = 0; i < parts.length; i++){
+    const p = parts[i];
+    if (/^\n\s*\n+$/.test(p)) continue; // blank lines keep
+
+    // 先切成 CJK / 非CJK 片段
+    const segs = splitByCJK(p);
+
+    // 對每個片段做「只轉靠近中文的標點」
+    for (let j = 0; j < segs.length; j++){
+      segs[j] = convertSegment(segs[j]);
+    }
+
+    parts[i] = segs.join("");
+  }
+
+  let out = parts.join("");
+
+  // restore urls and skip blocks
+  out = urlP.restore(out);
+  out = skipP.restore(out);
+
+  return out;
+}
 
     function runConvert(){
       const input = $("input").value;
@@ -629,6 +703,7 @@
 </body>
 
 </html>
+
 
 
 
