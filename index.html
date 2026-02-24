@@ -511,7 +511,7 @@
     }
 
     function cjkRatioOf(text){
-      const cjk = (text.match(/[\u4E00-\u9FFF\u3400-\u4DBF]/g) || []).length;
+      const cjk = (text.match(/[\u4E00-\u9FFF\u3400-\u4DBF\u3040-\u30FF\uAC00-\uD7AF]/g) || []).length;
       const letters = (text.match(/[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/g) || []).length;
       const digits = (text.match(/[0-9]/g) || []).length;
       const denom = Math.max(1, cjk + letters + digits);
@@ -629,6 +629,7 @@
 </body>
 
 </html>
+
 
 
 
