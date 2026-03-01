@@ -304,16 +304,17 @@
     <div class="panel">
       <div class="topbar">
         <div class="btns">
-          <button class="secondary" id="btnPaste">自剪貼簿貼上</button>
-          <button class="primary" id="btnConvert">依勾選項目輸出</button>
-          <button class="secondary" id="btnCopy">複製輸出內容</button>
-          <button class="secondary" id="btnOutputToInput">輸出 → 丟回輸入框</button>
-          <button class="warn" id="btnClear">清空</button>
+          <button class="secondary" id="btnPasteToInput" type="button">剪貼簿 → 貼到輸入區</button>
+          <button class="primary" id="btnConvert" type="button">依勾選項目輸出</button>
+          <button class="secondary" id="btnCopy" type="button">複製輸出內容</button>
+          <button class="secondary" id="btnOutputToInput" type="button">輸出 → 丟回輸入框</button>
+          <button class="warn" id="btnClear" type="button">清空</button>
         </div>
-        
+      </div>
+
       <div class="row" style="margin-top:2px;">
         <strong style="color:var(--text);">要轉換的標點符號：</strong>
-          <div class="row" style="margin-top:0;">
+        <div class="row" style="margin-top:0;">
           <label><input type="checkbox" id="optColon" checked> 冒號 : → ：（不改時間標記）</label>
           <label><input type="checkbox" id="optComma" checked> 逗號 , → ，（不改千分位分隔號）</label>
           <label><input type="checkbox" id="optQuestion" checked> 問號 ? → ？</label>
@@ -323,7 +324,38 @@
           <label><input type="checkbox" id="optSemi" checked> 分號 ; → ；</label>
           <label><input type="checkbox" id="optParen"> 小括號 ( ) → （ ）</label>
           <label><input type="checkbox" id="optBrace"> 大括號 { } → ｛ ｝</label>
-          <label><input type="checkbox" id="optEllipsis" checked> 刪節號 ...... → ……</label>
+
+          <!-- 多組自訂置換 -->
+          <div class="optionBlock" style="width:100%;">
+            <div class="optionTitle">自訂置換（可多組；會先做，再進行標點轉換）</div>
+
+            <div class="row" style="margin-top:0; align-items:flex-start;">
+              <label style="margin-right:8px;">
+                <input type="checkbox" id="optCustomReplace" checked> 啟用自訂置換
+              </label>
+
+              <button class="secondary" id="btnAddRule" type="button">+ 新增一組</button>
+            </div>
+
+            <div id="customRules" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
+
+            <!-- 規則列模板 -->
+            <template id="ruleTpl">
+              <div class="pill ruleRow" style="gap:10px; align-items:center; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:6px;">
+                  <input type="checkbox" class="ruleEnabled" checked>
+                  啟用
+                </label>
+
+                <span>把</span>
+                <input class="select ruleFrom" style="min-width:140px;" placeholder="要被替換的內容">
+                <span>換成</span>
+                <input class="select ruleTo" style="min-width:140px;" placeholder="替換成的內容">
+
+                <button class="warn ruleDel" type="button" style="padding:8px 10px;">刪除</button>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
 
@@ -362,7 +394,7 @@
           <span>輸出</span>
           <span class="meta" id="outputMeta">字數 0｜行數 0</span>
         </div>
-        <textarea id="output" placeholder="轉換後會出現在這裡…" readonly></textarea>
+        <textarea id="output" placeholder="轉換後會出現在這裡..." readonly></textarea>
       </div>
     </div>
   </div>
@@ -520,8 +552,65 @@
       return cjk / denom;
     }
 
+    /* =========================
+       多組自訂置換
+       ========================= */
+    function addRuleRow(from = "", to = "", enabled = true){
+      const tpl = $("ruleTpl");
+      const node = tpl.content.firstElementChild.cloneNode(true);
+      node.querySelector(".ruleFrom").value = from;
+      node.querySelector(".ruleTo").value = to;
+      node.querySelector(".ruleEnabled").checked = enabled;
+      $("customRules").appendChild(node);
+    }
+
+    // 預設先放一組：...... → ……
+    addRuleRow("......", "……", true);
+
+    $("btnAddRule").addEventListener("click", ()=>{
+      addRuleRow("", "", true);
+      toast("新增一組規則 ✓");
+    });
+
+    // 刪除按鈕：事件代理
+    $("customRules").addEventListener("click", (e)=>{
+      const btn = e.target.closest(".ruleDel");
+      if(!btn) return;
+      const row = btn.closest(".ruleRow");
+      row?.remove();
+      toast("已刪除一組規則");
+    });
+
+    function getCustomRules(){
+      const rows = Array.from(document.querySelectorAll("#customRules .ruleRow"));
+      const rules = rows.map(r => ({
+        enabled: r.querySelector(".ruleEnabled")?.checked ?? true,
+        from: (r.querySelector(".ruleFrom")?.value ?? ""),
+        to: (r.querySelector(".ruleTo")?.value ?? "")
+      }))
+      .filter(x => x.enabled && x.from !== ""); // from 空字串就跳過（不然會炸）
+
+      // from 越長越先換，避免短的先吃掉長的（例如 "..." vs "......"）
+      rules.sort((a,b)=> (b.from.length - a.from.length));
+      return rules;
+    }
+
+    function applyCustomRules(text){
+      if (!$("optCustomReplace").checked) return text;
+      let t = text;
+      const rules = getCustomRules();
+      for (const r of rules){
+        // 用 split/join：避免 regex 地雷
+        t = t.split(r.from).join(r.to);
+      }
+      return t;
+    }
+
     function convertSegment(seg){
       let t = seg;
+
+      // 自訂置換：先做，再跑標點
+      t = applyCustomRules(t);
 
       if ($("optColon").checked){
         t = replaceCharWithGuard(t, ":", "：", skipColonInNumber);
@@ -536,7 +625,8 @@
         t = t.replaceAll("!", "！");
       }
       if ($("optPeriod").checked){
-        t = t.replaceAll(".", "。");
+        // 保險作法：用 split/join 避免 '.' 被誤當 regex 任意字元
+        t = t.split(".").join("。");
       }
       if ($("optSemi").checked){
         t = t.replaceAll(";", "；");
@@ -546,10 +636,6 @@
       }
       if ($("optBrace").checked){
         t = t.replaceAll("{", "｛").replaceAll("}", "｝");
-      }
-      // 新增的刪節號轉換邏輯
-      if ($("optEllipsis").checked){
-        t = t.replaceAll("......", "……");
       }
 
       if ($("optQuotes").checked){
@@ -591,21 +677,27 @@
       return out;
     }
 
+    function runConvert(){
+      const input = $("input").value;
+      $("output").value = convertAll(input);
+      updateMeta();
+      toast("完成轉換 ✓");
+    }
+
     $("btnConvert").addEventListener("click", runConvert);
 
-    // 新增：從剪貼簿貼上功能的事件綁定
-    $("btnPaste").addEventListener("click", async () => {
-      try {
+    /* =========================
+       剪貼簿 → 輸入區
+       ========================= */
+    $("btnPasteToInput").addEventListener("click", async ()=>{
+      try{
         const text = await navigator.clipboard.readText();
-        if (text) {
-          $("input").value = text;
-          updateMeta();
-          toast("已貼上內容 ✓");
-        } else {
-          toast("剪貼簿是空的喔");
-        }
-      } catch (e) {
-        toast("瀏覽器阻擋貼上，請手動 Ctrl+V");
+        if(!text){ toast("剪貼簿是空的喔"); return; }
+        $("input").value = text;
+        updateMeta();
+        toast("已貼到輸入區 ✓");
+      }catch(e){
+        toast("讀不到剪貼簿：請用 HTTPS 或 localhost，並允許權限");
       }
     });
 
