@@ -304,6 +304,7 @@
     <div class="panel">
       <div class="topbar">
         <div class="btns">
+          <button class="secondary" id="btnPaste">自剪貼簿貼上</button>
           <button class="primary" id="btnConvert">依勾選項目輸出</button>
           <button class="secondary" id="btnCopy">複製輸出內容</button>
           <button class="secondary" id="btnOutputToInput">輸出 → 丟回輸入框</button>
@@ -318,10 +319,11 @@
           <label><input type="checkbox" id="optQuestion" checked> 問號 ? → ？</label>
           <label><input type="checkbox" id="optExcl" checked> 驚嘆號 ! → ！</label>
           <label><input type="checkbox" id="optQuotes" checked> 引號 ' " → 「 」 / 『 』</label>
-          <label><input type="checkbox" id="optPeriod" checked> 句號 . → 。</label>
+          <label><input type="checkbox" id="optPeriod"> 句號 . → 。</label>
           <label><input type="checkbox" id="optSemi" checked> 分號 ; → ；</label>
           <label><input type="checkbox" id="optParen"> 小括號 ( ) → （ ）</label>
           <label><input type="checkbox" id="optBrace"> 大括號 { } → ｛ ｝</label>
+          <label><input type="checkbox" id="optEllipsis" checked> 刪節號 ...... → ……</label>
         </div>
       </div>
 
@@ -545,6 +547,10 @@
       if ($("optBrace").checked){
         t = t.replaceAll("{", "｛").replaceAll("}", "｝");
       }
+      // 新增的刪節號轉換邏輯
+      if ($("optEllipsis").checked){
+        t = t.replaceAll("......", "……");
+      }
 
       if ($("optQuotes").checked){
         t = convertQuotes(t);
@@ -585,14 +591,23 @@
       return out;
     }
 
-    function runConvert(){
-      const input = $("input").value;
-      $("output").value = convertAll(input);
-      updateMeta();
-      toast("完成轉換 ✓");
-    }
-
     $("btnConvert").addEventListener("click", runConvert);
+
+    // 新增：從剪貼簿貼上功能的事件綁定
+    $("btnPaste").addEventListener("click", async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          $("input").value = text;
+          updateMeta();
+          toast("已貼上內容 ✓");
+        } else {
+          toast("剪貼簿是空的喔");
+        }
+      } catch (e) {
+        toast("瀏覽器阻擋貼上，請手動 Ctrl+V");
+      }
+    });
 
     $("btnCopy").addEventListener("click", async ()=>{
       const text = $("output").value;
@@ -627,11 +642,4 @@
     updateMeta();
   </script>
 </body>
-
 </html>
-
-
-
-
-
-
